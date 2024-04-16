@@ -6,6 +6,14 @@ This article will be focused on how Transparent Upgradeable Proxy works by using
 
 `Transparent Upgradeable Proxy` combines few different concepts, hence this article assumes that the reader understand about delegate call, [function selector](https://www.rareskills.io/post/function-selector), [ERC-1967](https://www.rareskills.io/post/erc1967), and [clone pattern](https://www.rareskills.io/post/eip-1167-minimal-proxy-standard-with-initialization-clone-pattern).
 
+### Proxy
+
+Proxy is the main component of smart contract upgradeability the definition of proxy itself is a simple smart contract that delegate calls and data to implementation contract that manages the logic. This concept allow user to interact with one contract address even if the implementation address is updated.
+
+### Upgradeability
+
+Smart contract is know for the immutability but with `Transparent Upgradeable Proxy` updating a smart contract is made possible. The upgradeability concept is not directly updating the smart contract but by creating a new one and using the existing data that stored in the proxy contract.
+
 ## Concept
 
 The concept of `Transparent Upgradeable Proxy` is to let users interact with smart contracts through a proxy which delegates the logic to the appointed address while the storage is kept in the proxy contract. Admin is allowed to change or update the existing logic by redirecting the logic address to the new one. Upgrade can be done through Proxy Admin contract which updates the implementation address on the Proxy contract.
@@ -19,6 +27,10 @@ The concept of `Transparent Upgradeable Proxy` is to let users interact with sma
 The structure of those three contracts can be drawn like:
 
 ![Transparent Structure](./asset/struct.png "Transparent Proxy Structure")
+
+`Transparent Upgradeable Proxy` main feature is providing Proxy Admin contract which seperate proxy contract function call and delegate call. Proxy contract seperate internal call and delegate call by checking the msg.sender, which allow the proxy contract to have the same function name with the implementation and avoid function selector clashing. The Proxy Admin contract call can be described as:
+
+![Proxy Admin Call](./asset/proxyadmincall.png "Proxy Admin Call")
 
 Proxy contract will be the main contract which keeps all of the storage including the destination address for the implementation contract (implementation contract) and access control (Proxy Admin Contract address). The use of `Transparent Upgradeable Proxy` itself can be shown through these two contract:
 
@@ -68,7 +80,157 @@ An upgradeable contract cannot have a `constructor` in order to replace the func
 
 - Use the same storage layout
 
-Storage layout is widely used across implementation versions to prevent collisions keeping the same storage layout is necessary when upgrading proxy logic. Storage layout can be kept by keeping the state variable name and order. Adding a new state variable is possible but it must be done after initialization of the existing state variable from the previous implementation version.
+Storage layout is widely used across implementation versions to prevent collisions keeping the same storage layout is necessary when upgrading proxy logic. Storage layout can be kept by keeping the state variable name and order.
+
+## Potential Pitfalls
+
+There are some potential pitfalls on using `Transparent Upgradeable Proxy`:
+
+### Storage Collision
+
+Storage collision caused by change of storage layout which can make the data overwritten or corrupt. This could lead to loss of fund and make the contract not usable. Prevention could be done by making sure the storage layout is kept the same as the previous version by not changing or deleting any existing state variable, adding new state variable must be done after declaration of state variable from the previous version.
+
+### Unsecured Access Control
+
+Proxy contract and Proxy Admin contract both have their own access control, incorrect access control could caused a proxy upgrade called by malicious user. A correct access control must also be given to a correct Proxy Admin contract or the Proxy contract won't be able to invoke upgrade. This problem is already taken care of by the OpenZeppelin's library it is recommended to not change the default template.
+
+## Setting Up Transparent Upgradeable Proxy
+
+### CounterV1.sol
+
+Set up a simple logic contract, for this example simple counter contract.
+
+```
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.20;
+
+contract CounterV1 {
+    uint256 public number;
+
+    function increment() public {
+        number++;
+    }
+}
+```
+
+### Proxy.sol
+
+Proxy is the the main contract, this snippet code will utilize OpenZeppelin's `Transparent Upgradeable Proxy` library. This contract will call `Transparent Upgradeable Proxy` library which initialize a new proxy admin contract.
+
+```
+// SPDX-License-Identifier: Unlicensed
+pragma solidity 0.8.20;
+
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
+contract Proxy is TransparentUpgradeableProxy {
+    address public proxyAdmin;
+
+    constructor(address _logic, address _initialOwner, bytes memory _data)
+        TransparentUpgradeableProxy(_logic, _initialOwner, _data)
+    {
+        proxyAdmin = _proxyAdmin();
+    }
+}
+```
+
+### Connecting Proxy and Implementation Contract
+
+This example using foundry, the implementation contract and the proxy can be connected on deployment of the proxy contract.
+`function setUp()` deploy CounterV1.sol contract and Proxy.sol contract with CounterV1 as arguments, for this example the admin is set to be the test contract itself. Since the proxy admin contract is initialized when deploying proxy contract, the address of the proxy admin can be gathered by `proxy.proxyAdmin()`;
+
+```
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import {Test, console} from "forge-std/Test.sol";
+import {Proxy} from "../src/Proxy.sol";
+import {CounterV1} from "../src/CounterV1.sol";
+import {CounterV2} from "../src/CounterV2.sol";
+
+import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
+contract CounterTest is Test {
+    ProxyAdmin proxyAdmin;
+    Proxy proxy;
+    CounterV1 counterV1;
+
+    function setUp() public {
+        counterV1 = new CounterV1();
+        proxy = new Proxy(address(counterV1), address(this), "");
+        proxyAdmin = ProxyAdmin(proxy.proxyAdmin());
+    }
+
+    ...
+}
+```
+
+### Testing Proxy Contract with CounterV1 Logic
+
+Every call of the logic contract has to use the address of the proxy. In this example is using CounterV1 as a type and using proxy as the address.
+
+```
+    ...
+
+    function test_CounterV1() public {
+        CounterV1 counter = CounterV1(address(proxy));
+        uint256 initialNumber = counter.number();
+
+        counter.increment();
+
+        assertEq(initialNumber + 1, counter.number());
+    }
+
+    ...
+```
+
+As expected the increment increased the counter variable by one.
+
+![Test CounterV1](./asset/testCounterV1.png "Test Counter V1")
+
+### Testing Proxy Contract with Upgrade to Counter V2 Logic
+
+CounterV2 contract will update the increment function from adding value of one to value of two.
+
+```
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.20;
+
+contract CounterV2 {
+    uint256 public number;
+
+    function increment() public {
+        number += 2;
+    }
+}
+```
+
+Upgrading a contract can be done by calling `upgradeAndCall()` function through Proxy Admin contract. In this example proxy admin called proxy contract to update the implementation contract with the CounterV2 address.
+
+```
+    ...
+
+    function test_UpdateToCounterV2() public {
+        CounterV2 counterV2;
+        counterV2 = new CounterV2();
+
+        proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(proxy)), address(counterV2), "");
+
+        CounterV2 counter = CounterV2(address(proxy));
+        uint256 initialNumber = counter.number();
+
+        counter.increment();
+
+        assertEq(initialNumber + 2, counter.number());
+    }
+
+    ...
+```
+
+New logic contract will be used instead of the old one. This can be seen that `increment()` function will add counter variable by two instead of one.
+
+![Test CounterV2](./asset/testCounterV2.png "Test Counter V2")
 
 ## Tips on Upgrading Contract
 
