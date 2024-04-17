@@ -1,10 +1,12 @@
 # Transparent Upgradeable Proxy
 
-This article will be focused on how Transparent Upgradeable Proxy works by using the [OpenZeppelin's library](https://github.com/OpenZeppelin/openzeppelin-contracts/tree/master/contracts/proxy/transparent).
+This article explain on upgrading smart contract easily by using `Transparent Upgradeable Proxy` utilizing [OpenZeppelin's library](https://github.com/OpenZeppelin/openzeppelin-contracts/tree/master/contracts/proxy/transparent).
 
-## Prerequisites
+This method allows logic in smart contract to be updated while keeping the data.
 
-`Transparent Upgradeable Proxy` combines few different concepts, hence this article assumes that the reader understand about delegate call, [function selector](https://www.rareskills.io/post/function-selector), [ERC-1967](https://www.rareskills.io/post/erc1967), and [clone pattern](https://www.rareskills.io/post/eip-1167-minimal-proxy-standard-with-initialization-clone-pattern).
+Even though there's other smart contract upgrade concept, `Transparent Upgradeable Proxy` is simpler to implement and widely use.
+
+`Transparent Upgradeable Proxy` combines few different concepts assuming that the reader understand about delegate call, [function selector](https://www.rareskills.io/post/function-selector), [ERC-1967](https://www.rareskills.io/post/erc1967), and [clone pattern](https://www.rareskills.io/post/eip-1167-minimal-proxy-standard-with-initialization-clone-pattern).
 
 ### Proxy
 
