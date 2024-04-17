@@ -8,11 +8,11 @@ This article will be focused on how Transparent Upgradeable Proxy works by using
 
 ### Proxy
 
-Proxy is the main component of smart contract upgradeability the definition of proxy itself is a simple smart contract that delegate calls and data to implementation contract that manages the logic. This concept allow user to interact with one contract address even if the implementation address is updated.
+Proxy is the main component of smart contract upgradeability. Proxy is a simple smart contract that delegates calls and data to an implementation contract which manages the logic. This concept allows users to interact with one contract address even if the implementation address is upgraded.
 
 ### Upgradeability
 
-Smart contract is know for the immutability but with `Transparent Upgradeable Proxy` updating a smart contract is made possible. The upgradeability concept is not directly updating the smart contract but by creating a new one and using the existing data that stored in the proxy contract.
+Smart contract is known for the immutability but with `Transparent Upgradeable Proxy` updating a smart contract is made possible. The upgradeability concept is not directly updating the smart contract but by creating a new one and using the existing data that is stored in the proxy contract.
 
 ## Concept
 
@@ -28,11 +28,11 @@ The structure of those three contracts can be drawn like:
 
 ![Transparent Structure](./asset/struct.png "Transparent Proxy Structure")
 
-`Transparent Upgradeable Proxy` main feature is providing Proxy Admin contract which seperate proxy contract function call and delegate call. Proxy contract seperate internal call and delegate call by checking the msg.sender, which allow the proxy contract to have the same function name with the implementation and avoid function selector clashing. The Proxy Admin contract call can be described as:
+`Transparent Upgradeable Proxy` main feature is providing Proxy Admin contract which separate proxy contract function call and delegate call. Proxy contract separate internal calls and delegate calls by checking the msg.sender, which allows the proxy contract to have the same function name with the implementation and avoid function selector clashing. The Proxy Admin contract call can be described as:
 
 ![Proxy Admin Call](./asset/proxyadmincall.png "Proxy Admin Call")
 
-Proxy contract will be the main contract which keeps all of the storage including the destination address for the implementation contract (implementation contract) and access control (Proxy Admin Contract address). The use of `Transparent Upgradeable Proxy` itself can be shown through these two contract:
+Proxy contract will be the main contract which keeps all of the storage including the destination address for the implementation contract and access control (Proxy Admin Contract address). The use of `Transparent Upgradeable Proxy` itself can be shown through these two contract:
 
 ### Proxy Contract
 
@@ -72,7 +72,7 @@ Although it is possible to update the logic of smart contracts by using `Transpa
 
 - Should not use `constructor` but use `initializer` modifier instead
 
-An upgradeable contract cannot have a `constructor` in order to replace the functionality of constructor it is recommended to create a function with `initializer` modifier which allow the function to be called once.
+An upgradeable contract cannot have a `constructor` in order to replace the functionality of constructor it is recommended to create a function with `initializer` modifier which allows the function to be called once.
 
 - Handle `selfdestruct` and `delegatecall` with care
 
@@ -88,11 +88,11 @@ There are some potential pitfalls on using `Transparent Upgradeable Proxy`:
 
 ### Storage Collision
 
-Storage collision caused by change of storage layout which can make the data overwritten or corrupt. This could lead to loss of fund and make the contract not usable. Prevention could be done by making sure the storage layout is kept the same as the previous version by not changing or deleting any existing state variable, adding new state variable must be done after declaration of state variable from the previous version.
+Storage collision caused by change of storage layout which can make the data overwritten or corrupt. This could lead to loss of funds and make the contract not usable. Prevention could be done by making sure the storage layout is kept the same as the previous version by not changing or deleting any existing state variable, adding a new state variable must be done after declaration of state variable from the previous version.
 
 ### Unsecured Access Control
 
-Proxy contract and Proxy Admin contract both have their own access control, incorrect access control could caused a proxy upgrade called by malicious user. A correct access control must also be given to a correct Proxy Admin contract or the Proxy contract won't be able to invoke upgrade. This problem is already taken care of by the OpenZeppelin's library it is recommended to not change the default template.
+Proxy contract and Proxy Admin contract both have their own access control, incorrect access control could cause a proxy upgrade called by a malicious user. A correct access control must also be given to a correct Proxy Admin contract or the Proxy contract won't be able to invoke upgrade. This problem is already taken care of by the OpenZeppelin's library, it is recommended to not change the default template.
 
 ## Setting Up Transparent Upgradeable Proxy
 
@@ -115,7 +115,7 @@ contract CounterV1 {
 
 ### Proxy.sol
 
-Proxy is the the main contract, this snippet code will utilize OpenZeppelin's `Transparent Upgradeable Proxy` library. This contract will call `Transparent Upgradeable Proxy` library which initialize a new proxy admin contract.
+Proxy is the main contract, this code snippet will utilize OpenZeppelin's `Transparent Upgradeable Proxy` library. This contract will call the `Transparent Upgradeable Proxy` library which initializes a new proxy admin contract.
 
 ```
 // SPDX-License-Identifier: Unlicensed
@@ -206,7 +206,7 @@ contract CounterV2 {
 }
 ```
 
-Upgrading a contract can be done by calling `upgradeAndCall()` function through Proxy Admin contract. In this example proxy admin called proxy contract to update the implementation contract with the CounterV2 address.
+Upgrading a contract can be done by calling the `upgradeAndCall()` function through Proxy Admin contract. In this example proxy admin called proxy contract to update the implementation contract with the CounterV2 address.
 
 ```
     ...
@@ -228,13 +228,13 @@ Upgrading a contract can be done by calling `upgradeAndCall()` function through 
     ...
 ```
 
-New logic contract will be used instead of the old one. This can be seen that `increment()` function will add counter variable by two instead of one.
+New logic contract will be used instead of the old one. It can be seen that the `increment()` function will add a counter variable by two instead of one.
 
 ![Test CounterV2](./asset/testCounterV2.png "Test Counter V2")
 
 ## Tips on Upgrading Contract
 
-OpenZeppelin not only provides the `Transaparent Upgradeable Proxy` library but also provides tools that can help to check upgrade compatability of the new implementation contract version. [OpenZeppelin Upgrades](https://github.com/OpenZeppelin/openzeppelin-upgrades) tools also help the flow of initializing and upgrading the upgradeable smart contract.
+OpenZeppelin not only provides the `Transparent Upgradeable Proxy` library but also provides tools that can help to check upgrade compatibility of the new implementation contract version. [OpenZeppelin Upgrades](https://github.com/OpenZeppelin/openzeppelin-upgrades) tools also help the flow of initializing and upgrading the upgradeable smart contract.
 
 ## Conclusion
 
