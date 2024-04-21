@@ -41,11 +41,25 @@ Proxy contract will be the main contract which keeps all of the storage includin
 Proxy contract code:
 ![Proxy Contract](./asset/proxy.png "Proxy snippet")
 
-`constructor` with parameters that consist of `_logic`, `initialOwner`, and `_data`. Fill `_logic` parameter with implementation contract address, `initialOwner` with Proxy Admin contract address, and `_data` with encoded function call. `constructor` then manages the function call to the implementation address and keeps the admin address for implementation upgradeability purposes.
+`constructor` with parameters that consist of `_logic`, `initialOwner`, and `_data`. Fill `_logic` parameter with implementation contract address, `initialOwner` with Proxy Admin contract address, and `_data` with encoded function call. `constructor` then manages the function call to the implementation address and keeps the admin address for implementation upgradeability purposes. `constructor` also initialize ERC1967 or the storage slot that used in proxy. Storage slot that initialized is kept in the proxy. State variables that are used in implementation contracts will refer to the proxy storage slot hence the order of the state variable is important or storage collision is inevitable.
+
+![Storage Slot](./asset/storageSlot.png "Storage Slot")
 
 `function _proxyAdmin()` returns the proxy admin address which allows the proxy admin to call the upgrade.
 
-`function _fallback()` manages delegate calls to implementation contracts and also manages the internal calls for upgrading the smart contract logic. The fallback function only allows the proxy admin to interact with `function _dispatchUpgradeToAndCall` or it will be reverted.
+`function _fallback()` is the main function of a proxy contract. There's three features of `Transparent Upgradable Proxy` in this function which is:
+
+- Permission Checking
+
+First thing that the function does is to check who is the caller of the function. The function needs to check whether the contract caller is admin. This checking function usually consumes a lot of gas (2100 units) for the sload cost but this contract save the admin proxy address in immutable variable which will use less gas (6 unit).
+
+- Restricting Proxy Admin Authority
+
+If the caller is a proxy admin, the function then checks if msg.sig is equal with the internal upgrade function in this case `_dispatchUpgradeToAndCall` function. This step prevents the proxy admin to call another internal function that is not related with upgrading implementation contract.
+
+- Delegate Call
+
+The proxy contract delegate call from a user that is not admin to the implementation contract. This will allow the user to interact with the latest logic that is addressed by the proxy.
 
 `function _dispatchUpgradeToAndCall` is called by the `_fallback()` function when the Proxy Admin intends to upgrade the contract along with the encoded function call onto the implementation contract.
 
@@ -107,6 +121,7 @@ Set up a simple logic contract, for this example simple counter contract.
 pragma solidity 0.8.20;
 
 contract CounterV1 {
+    address _proxyAdmin;
     uint256 public number;
 
     function increment() public {
@@ -200,6 +215,7 @@ CounterV2 contract will update the increment function from adding value of one t
 pragma solidity 0.8.20;
 
 contract CounterV2 {
+    address _proxyAdmin;
     uint256 public number;
 
     function increment() public {
@@ -233,6 +249,52 @@ Upgrading a contract can be done by calling the `upgradeAndCall()` function thro
 New logic contract will be used instead of the old one. It can be seen that the `increment()` function will add a counter variable by two instead of one.
 
 ![Test CounterV2](./asset/testCounterV2.png "Test Counter V2")
+
+### \_data Parameter On Proxy Constructor
+
+In two previous examples it focused on the concept of upgrading smart contract logic, the code snippet filled the `_data` arguments with an empty string which means no delegate call into the implementation contract at proxy deployment. This example will show delegate calls by utilizing the `_data` argument which is usually used as the replacement of constructor on the implementation contract. Here's a new Counter contract with a `function initializer`.
+
+```
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.20;
+
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+contract Counter is Initializable {
+    address _proxyAdmin;
+    uint256 public number;
+
+    function initialize(uint256 _initialNumber) public initializer {
+        number = _initialNumber;
+    }
+
+    function increment() public {
+        number++;
+    }
+}
+```
+
+At proxy deployment let's assume the initial set up for the project is to have a number variable to have 10 as initial value. In order to do so `_data` argument in proxy constructor can be utilized.
+
+```
+    ...
+
+    function test_ConstructorDelegateCall() public {
+        Counter counter = new Counter();
+
+        bytes memory data = abi.encodeWithSignature("initialize(uint256)", 10);
+
+        Proxy newProxy = new Proxy(address(counter), address(this), data);
+
+        assertEq(Counter(address(newProxy)).number(), 10);
+    }
+
+    ...
+```
+
+Passing the `_data` argument will result in a delegate call to the implementation contract at deployment. This deployment resulted in the initial value `number` set to 10 instead of the default value of 0.
+
+![Test Delegate Call](./asset/testDelegateCall.png "Test Delegate Call")
 
 ## Tips on Upgrading Contract
 
